@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 type Product struct {
@@ -75,6 +76,78 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func productHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/products/"):]
+	switch r.Method {
+	case http.MethodGet:
+		findProductByID(w, r, id)
+	case http.MethodPut, http.MethodPatch:
+		updateProduct(w, r, id)
+	case http.MethodDelete:
+		deleteProduct(w, r, id)
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
+	}
+}
+
+func findProductByID(w http.ResponseWriter, r *http.Request, id string) {
+	w.Header().Set("Content-Type", "application/json")
+	encoder := json.NewEncoder(w)
+	for _, product := range productList {
+		if strconv.Itoa(product.ProductID) == id {
+			encoder.Encode(product)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNotFound)
+}
+
+func updateProduct(w http.ResponseWriter, r *http.Request, id string) {
+	var product Product
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&product)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Could not update product"))
+		return
+	}
+	if id == strconv.Itoa(0) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	for i, p := range productList {
+		if strconv.Itoa(p.ProductID) == id {
+			id_, err := strconv.Atoi(id)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			product.ProductID = id_
+			productList[i] = product
+			w.Header().Set("Content-Type", "application/json")
+			encoder := json.NewEncoder(w)
+			encoder.Encode(productList[i])
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNotFound)
+}
+
+func deleteProduct(w http.ResponseWriter, r *http.Request, id string) {
+	for i, p := range productList {
+		if strconv.Itoa(p.ProductID) == id {
+			productList = append(productList[:i], productList[i+1:]...)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNotFound)
+}
+
 func getNextID() int {
 	highestID := -1
 	for _, product := range productList {
@@ -113,5 +186,7 @@ func getProducts(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/products", productsHandler)
+	http.HandleFunc("/products/", productHandler)
+
 	http.ListenAndServe(":5000", nil)
 }
