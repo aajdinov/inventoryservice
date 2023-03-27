@@ -3,6 +3,7 @@ package product
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -39,7 +40,7 @@ func productHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		findProductByID(w, r, id)
 	case http.MethodPut, http.MethodPatch:
-		updateProduct(w, r, id)
+		putProduct(w, r, id)
 	case http.MethodDelete:
 		deleteProduct(w, r, id)
 	case http.MethodOptions:
@@ -57,16 +58,21 @@ func findProductByID(w http.ResponseWriter, r *http.Request, id string) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	product := getProduct(productID)
+	product, err := getProduct(productID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	if product == nil {
-		http.Error(w, fmt.Sprintf("no product with id %d", productID), http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	encoder.Encode(product)
 }
 
-func updateProduct(w http.ResponseWriter, r *http.Request, id string) {
+func putProduct(w http.ResponseWriter, r *http.Request, id string) {
 	var product Product
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&product)
@@ -86,7 +92,7 @@ func updateProduct(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	product.ProductID = productID
-	addOrUpdateProduct(product)
+	updateProduct(product)
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -115,16 +121,22 @@ func addProduct(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	_, err = addOrUpdateProduct(product)
+	productID, err := insertProduct(product)
 	if err != nil {
+		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(strconv.Itoa(productID)))
 }
 
 func getProducts(w http.ResponseWriter, r *http.Request) {
 	encoder := json.NewEncoder(w)
-	productList := getProductList()
+	productList, err := getProductList()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	encoder.Encode(productList)
 }
