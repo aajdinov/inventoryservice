@@ -1,0 +1,130 @@
+package product
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"github.com/aajdinov/inventoryservice/cors"
+)
+
+const productsBasePath = "products"
+
+func SetupRoutes(apiBasePath string) {
+	handleProducts := http.HandlerFunc(productsHandler)
+	handleProduct := http.HandlerFunc(productHandler)
+
+	http.Handle(fmt.Sprintf("%s/%s", apiBasePath, productsBasePath), cors.Middleware(handleProducts))
+	http.Handle(fmt.Sprintf("%s/%s/", apiBasePath, productsBasePath), cors.Middleware(handleProduct))
+}
+
+func productsHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		getProducts(w, r)
+	case http.MethodPost:
+		addProduct(w, r)
+	case http.MethodOptions:
+		return
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
+	}
+}
+
+func productHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/api/v1/products/"):]
+	switch r.Method {
+	case http.MethodGet:
+		findProductByID(w, r, id)
+	case http.MethodPut, http.MethodPatch:
+		updateProduct(w, r, id)
+	case http.MethodDelete:
+		deleteProduct(w, r, id)
+	case http.MethodOptions:
+		return
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
+	}
+}
+
+func findProductByID(w http.ResponseWriter, r *http.Request, id string) {
+	encoder := json.NewEncoder(w)
+	productID, err := strconv.Atoi(id)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	product := getProduct(productID)
+	if product == nil {
+		http.Error(w, fmt.Sprintf("no product with id %d", productID), http.StatusNotFound)
+		return
+	}
+
+	encoder.Encode(product)
+}
+
+func updateProduct(w http.ResponseWriter, r *http.Request, id string) {
+	var product Product
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&product)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Could not update product"))
+		return
+	}
+	if id == strconv.Itoa(0) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	productID, err := strconv.Atoi(id)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	product.ProductID = productID
+	addOrUpdateProduct(product)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func deleteProduct(w http.ResponseWriter, r *http.Request, id string) {
+	productID, err := strconv.Atoi(id)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	removeProduct(productID)
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func addProduct(w http.ResponseWriter, r *http.Request) {
+	var product Product
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&product)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Could not add product"))
+		return
+	}
+	if product.ProductID != 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	_, err = addOrUpdateProduct(product)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+func getProducts(w http.ResponseWriter, r *http.Request) {
+	encoder := json.NewEncoder(w)
+	productList := getProductList()
+	encoder.Encode(productList)
+}
