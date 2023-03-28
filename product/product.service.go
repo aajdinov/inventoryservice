@@ -29,8 +29,8 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodOptions:
 		return
 	default:
-		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(http.StatusText(http.StatusMethodNotAllowed)))
 	}
 }
 
@@ -46,8 +46,8 @@ func productHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodOptions:
 		return
 	default:
-		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(http.StatusText(http.StatusMethodNotAllowed)))
 	}
 }
 
